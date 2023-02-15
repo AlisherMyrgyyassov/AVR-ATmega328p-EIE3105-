@@ -1,0 +1,75 @@
+#define F_CPU 16000000
+
+#include <avr/io.h>
+#include <util/delay.h>
+#include <avr/interrupt.h>
+
+void UART_TxChar (char data); //send char from arduino
+char UART_RxChar ();		  //receive char to arduino
+void UART_TxString(char text[]); // send strings
+
+int main(void)
+{
+	UBRR0L = 0xd0;//4800 baud rate (bps), see more at USART section, examples of UBRRn Settings
+	
+	UCSR0B = (1<<TXEN0)|(1<<RXEN0); // TXEN for sending from microcontroller, RXEN to receive to microcontroller
+	
+	UCSR0C = (1<<UCSZ00)|(1<<UCSZ01); //what is the size of data we want to send. By initializing these two bits, we set the 
+									  // size of data to be 8 bit. More on USART Character size in the manual.
+	
+	//Section D(i)
+	
+	UART_TxString("We are ready!");
+	UCSR0B |= (1<<RXCIE0); //Enables interrupt
+	sei();
+	while(1); //waiting for the interrupt	
+	
+	
+}
+
+
+void UART_TxChar(char data) { // send char from microcontroller
+	while (!(UCSR0A&(1<<UDRE0))); //check UCSR0A register, and whenever UDRE0 is set, we get
+	UDR0 = data;				  //the serial value. UDR0 is the bit to be sent.
+}
+
+
+char UART_RxChar () {
+	while(!(UCSR0A&(1<<RXC0)));
+	return UDR0;
+}
+
+void UART_TxString(char text[]) {
+	int i = 0;
+	while (i<255) {
+		if(text[i] == '\0') break; //if null character, breaks the loop
+		UART_TxChar(text[i]);
+		i++;
+	}
+}
+
+
+char USART_ReceiveBuffer;
+int temp_flag;
+char temp_char;
+char comparisonChar = '\0';
+
+ISR(USART_RX_vect) //when there is an input
+{
+	// Section D (i)
+	
+	USART_ReceiveBuffer = UDR0; //input into udr0
+	if (USART_ReceiveBuffer == 'H') {
+		temp_flag = 1;
+	}
+	
+	else if (USART_ReceiveBuffer == 'i' && (temp_flag == 1)) {
+		temp_flag = 0;
+		UART_TxString("Bye!");
+	}
+	else {
+		temp_flag = 0;
+	}
+	
+}
+
